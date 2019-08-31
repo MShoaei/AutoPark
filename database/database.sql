@@ -2,9 +2,9 @@ DROP TABLE IF EXISTS accounts;
 CREATE TABLE accounts
 (
     id           INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
-    phone_number CHAR(13)        NOT NULL UNIQUE,
-    full_name    NVARCHAR(150),
-    password     CHAR(64)
+    phone_number CHAR(11)        NOT NULL UNIQUE,
+    full_name    NVARCHAR(150)   NOT NULL,
+    password     CHAR(97)        NOT NULL
 );
 
 DROP TABLE IF EXISTS car;
@@ -21,7 +21,8 @@ DROP TABLE IF EXISTS wallets;
 CREATE TABLE wallets
 (
     id      INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
-    user_id INT UNIQUE      NOT NULL REFERENCES accounts (id)
+    user_id INT UNIQUE      NOT NULL REFERENCES accounts (id),
+    credit  REAL            NOT NULL DEFAULT 0
 );
 
 DROP TABLE IF EXISTS spots;
@@ -41,8 +42,11 @@ CREATE TABLE parking
     id         INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
     name       VARCHAR(255)    NOT NULL UNIQUE,
     capacity   INT             NOT NULL,
+    price      REAL            NOT NULL,
     start_time TIME            NOT NULL,
-    end_time   TIME            NOT NULL
+    end_time   TIME            NOT NULL,
+    node1      VARCHAR(20)     NOT NULL,
+    node2      VARCHAR(20)     NOT NULL
 );
 
 DROP TABLE IF EXISTS floors;
@@ -65,5 +69,6 @@ CREATE TABLE reserves
     end_time    TIME            NOT NULL,
     date        DATE            NOT NULL,
     paid_online BOOL            NOT NULL,
-    price       REAL            NOT NULL
+    price       REAL            NOT NULL,
+    plate       VARCHAR(20)     NOT NULL
 );
