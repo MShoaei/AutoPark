@@ -45,14 +45,38 @@ func register(context iris.Context) {
 	phone := context.PostValue("phone")
 	name := context.PostValue("name")
 	password := context.PostValue("password")
+	credit := context.PostValueFloat64Default("credit", 0)
 	hash, _ := argon2id.CreateHash(password, argon2)
-	//fmt.Println(string(hash[:]))
-	//fmt.Println(string(hash[:32]))
-	_, err = DB.Exec("INSERT INTO accounts(phone_number, full_name, password) VALUES (?, ?, ?)", phone, name, hash)
+	tx, _ := DB.Beginx()
+	_, err = tx.Exec("INSERT INTO accounts(phone_number, full_name, password) VALUES (?, ?, ?)", phone, name, hash)
 	if err != nil {
-		//log.Fatal(err)
 		context.StatusCode(iris.StatusBadRequest)
-		_, _ = context.JSON(iris.Map{"success": false, "error": err})
+		_, _ = context.JSON(iris.Map{"success": false})
+		return
+	}
+	var userID int
+	err = tx.Get(&userID, "SELECT LAST_INSERT_ID()")
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
+		return
+	}
+	_, err = tx.Exec("INSERT INTO wallets(user_id, credit) VALUE (?, ?)", userID, credit)
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
+		return
+	}
+	_, err = tx.Exec("INSERT INTO car(user_id) VALUE (?)", userID)
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
+		return
+	}
+	err = tx.Commit()
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
 		return
 	}
 	_, _ = context.JSON(iris.Map{"success": true})
@@ -69,10 +93,12 @@ func login(context iris.Context) {
 	err = DB.Get(&user, "SELECT id, password FROM accounts WHERE phone_number=?", phone)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
 		return
 	}
 	if match, _ := argon2id.ComparePasswordAndHash(password, user.Password); !match {
 		context.StatusCode(iris.StatusUnauthorized)
+		_, _ = context.JSON(iris.Map{"success": false})
 		return
 	}
 	_, _ = context.JSON(iris.Map{"id": user.ID})
@@ -91,16 +117,17 @@ func forgotPassword(context iris.Context) {
 			_, _ = context.JSON(iris.Map{"exists": false})
 			return
 		}
-		_, _ = context.JSON(iris.Map{"exists": true})
+		_, _ = context.JSON(iris.Map{"exists": true, "id": id})
 	case iris.MethodPost:
 		id, _ = strconv.Atoi(context.PostValue("id"))
-		newPassword, _ := argon2id.CreateHash(context.PostValue("pass"), argon2)
+		newPassword, _ := argon2id.CreateHash(context.PostValue("password"), argon2)
 		_, err = DB.Query("UPDATE accounts SET password=? WHERE id=?", newPassword, id)
 		if err != nil {
 			context.StatusCode(iris.StatusBadRequest)
+			_, _ = context.JSON(iris.Map{"success": false})
 			return
 		}
-		_, _ = context.JSON(iris.Map{})
+		_, _ = context.JSON(iris.Map{"success": true})
 	}
 }
 
@@ -123,13 +150,13 @@ func parkingDetails(context iris.Context) {
 	var detail struct {
 		Name      string
 		Capacity  int
-		StartTime time.Time `db:"start_time"`
-		EndTime   time.Time `db:"end_time"`
+		StartTime string `db:"start_time"`
+		EndTime   string `db:"end_time"`
 		Node1     string
 		Node2     string
 	}
 	id := context.Params().Get("id")
-	err = DB.Select(&detail, "SELECT name, capacity, start_time, end_time, node1, node2 FROM parking WHERE id=?", id)
+	err = DB.Get(&detail, "SELECT name, capacity, start_time, end_time, node1, node2 FROM parking WHERE id=?", id)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
@@ -181,7 +208,7 @@ func parkingPrice(context iris.Context) {
 		context.StatusCode(iris.StatusBadRequest)
 		return
 	}
-	err = DB.Select(&price, "SELECT price FROM parking WHERE id=?", id)
+	err = DB.Get(&price, "SELECT price FROM parking WHERE id=?", id)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
@@ -190,16 +217,31 @@ func parkingPrice(context iris.Context) {
 }
 
 func reserveSpot(context iris.Context) {
+	var err error
 	userID := context.PostValue("user_id")
 	carID := context.PostValue("car_id")
-	spotID := context.PostValue("spot_id")
-	startTime := context.PostValue("startTime")
-	endTime := context.PostValue("endTime")
-	date := context.PostValue("date")
+	parkingID := context.PostValue("parking_id")
+	floorID := context.PostValue("floor_id")
+	spotNumber := context.PostValue("park_place_number")
+	startTime := context.PostValue("start_time")
+	endTime := context.PostValue("end_time")
+	date, _ := time.Parse("2006-01-02", time.Now().String())
 	paidOnline := context.PostValue("paid_online")
 	price := context.PostValue("price")
-	_, err := DB.Query("INSERT INTO reserves(user_id, car_id, spot_id, start_time, end_time, date, paid_online, price) VALUE (?, ?, ?, ?, ?, ?, ?, ?)",
-		userID, carID, spotID, startTime, endTime, date, paidOnline, price)
+	var plate string
+	err = DB.Get(&plate, "SELECT plate FROM car WHERE id=?", carID)
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		return
+	}
+	var spotID int
+	err = DB.Get(&spotID, "SELECT id FROM spots WHERE parking_id=? AND floor_id=? AND number=?", parkingID, floorID, spotNumber)
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		return
+	}
+	_, err = DB.Exec("INSERT INTO reserves(user_id, car_id, spot_id, start_time, end_time, date, paid_online, price, plate) VALUE (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		userID, carID, spotID, startTime, endTime, date, paidOnline, price, plate)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		_, _ = context.JSON(iris.Map{"success": false})
@@ -216,7 +258,7 @@ func getCredit(context iris.Context) {
 		context.StatusCode(iris.StatusBadRequest)
 		return
 	}
-	err = DB.Select(&credit, "SELECT credit FROM wallets WHERE user_id=?", id)
+	err = DB.Get(&credit, "SELECT credit FROM wallets WHERE user_id=?", id)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
@@ -235,6 +277,7 @@ func updateCredit(context iris.Context) {
 	_, err = DB.Query("UPDATE wallets SET credit=? WHERE user_id=?", newCredit, userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
 		return
 	}
 	_, _ = context.JSON(iris.Map{"success": true})
@@ -253,7 +296,7 @@ func getCar(context iris.Context) {
 		Plate string
 		Color string
 	}{}
-	err = DB.Select(&car, "SELECT id, model, plate, color FROM car WHERE user_id=?", userID)
+	err = DB.Get(&car, "SELECT id, model, plate, color FROM car WHERE user_id=?", userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
@@ -271,9 +314,10 @@ func updateCar(context iris.Context) {
 		context.StatusCode(iris.StatusBadRequest)
 		return
 	}
-	_, err = DB.Query("UPDATE car SET model=?, plate=2, color=4 WHERE user_id=5", model, plate, color, userID)
+	_, err = DB.Query("UPDATE car SET model=?, plate=?, color=? WHERE user_id=?", model, plate, color, userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
 		return
 	}
 	_, _ = context.JSON(iris.Map{"success": true})
@@ -291,6 +335,7 @@ func updateUser(context iris.Context) {
 	_, err = DB.Query("UPDATE accounts SET full_name=?, password=? WHERE id=?", name, password, userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
+		_, _ = context.JSON(iris.Map{"success": false})
 		return
 	}
 	_, _ = context.JSON(iris.Map{"success": true})
