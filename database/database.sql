@@ -7,8 +7,8 @@ CREATE TABLE accounts
     password     CHAR(97)        NOT NULL
 );
 
-DROP TABLE IF EXISTS car;
-CREATE TABLE car
+DROP TABLE IF EXISTS cars;
+CREATE TABLE cars
 (
     id      INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
     user_id INT UNIQUE      NOT NULL REFERENCES accounts (id),
@@ -32,7 +32,6 @@ CREATE TABLE spots
     parking_id INT             NOT NULL REFERENCES parking (id),
     floor_id   INT             NOT NULL REFERENCES floors (id),
     number     INT             NOT NULL,
-    free       BOOL            NOT NULL,
     price      REAL            NOT NULL
 );
 
@@ -52,19 +51,19 @@ CREATE TABLE parking
 DROP TABLE IF EXISTS floors;
 CREATE TABLE floors
 (
-    id          INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
-    parking_lot INT             NOT NULL REFERENCES parking (id),
-    number      INT             NOT NULL,
-    capacity    INT             NOT NULL
+    id         INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+    parking_id INT             NOT NULL REFERENCES parking (id),
+    number     INT             NOT NULL,
+    capacity   INT             NOT NULL
 );
 
 DROP TABLE IF EXISTS reserves;
 CREATE TABLE reserves
 (
     id          INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
-    user_id     INT UNIQUE      NOT NULL REFERENCES accounts (id),
-    car_id      INT UNIQUE      NOT NULL REFERENCES car (id),
-    spot_id     INT UNIQUE      NOT NULL REFERENCES spots (id),
+    user_id     INT             NOT NULL REFERENCES accounts (id),
+    car_id      INT             NOT NULL REFERENCES cars (id),
+    spot_id     INT             NOT NULL REFERENCES spots (id),
     start_time  TIME            NOT NULL,
     end_time    TIME            NOT NULL,
     date        DATE            NOT NULL,
