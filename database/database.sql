@@ -12,9 +12,9 @@ CREATE TABLE cars
 (
     id      INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
     user_id INT UNIQUE      NOT NULL REFERENCES accounts (id),
-    model   VARCHAR(255)    NOT NULL,
-    plate   VARCHAR(20)     NOT NULL UNIQUE,
-    color   VARCHAR(30)     NOT NULL
+    model   VARCHAR(255),
+    plate   VARCHAR(20),
+    color   VARCHAR(30)
 );
 
 DROP TABLE IF EXISTS wallets;

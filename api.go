@@ -6,6 +6,7 @@ import (
 	"github.com/kataras/iris"
 	"strconv"
 	"time"
+	"log"
 )
 
 var argon2 *argon2id.Params
@@ -52,6 +53,7 @@ func register(context iris.Context) {
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		_, _ = context.JSON(iris.Map{"success": false})
+		tx.Rollback()
 		return
 	}
 	var userID int
@@ -59,18 +61,21 @@ func register(context iris.Context) {
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		_, _ = context.JSON(iris.Map{"success": false})
+		tx.Rollback()
 		return
 	}
 	_, err = tx.Exec("INSERT INTO wallets(user_id, credit) VALUE (?, ?)", userID, credit)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		_, _ = context.JSON(iris.Map{"success": false})
+		tx.Rollback()
 		return
 	}
-	_, err = tx.Exec("INSERT INTO car(user_id) VALUE (?)", userID)
+	_, err = tx.Exec("INSERT INTO cars(user_id) VALUE (?)", userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		_, _ = context.JSON(iris.Map{"success": false})
+		tx.Rollback()
 		return
 	}
 	err = tx.Commit()
@@ -185,17 +190,22 @@ func parkingFloorSpots(context iris.Context) {
 	spots := make([]struct {
 		ID     int
 		Number int
-		Free   bool
 		Price  float64
 	}, 0)
 	// selects reserved spots
-	err = DB.Select(&spots, "SELECT s.id, s.number, s.free, s.price  FROM spots s JOIN reserves r on s.id = r.spot_id WHERE s.parking_id=? AND s.floor_id=? AND r.start_time BETWEEN ? AND ?", parkingID, floorID, startTime, startTime.Add(1*time.Hour))
+	date := time.Now().Format("2006-01-02")
+	err = DB.Select(&spots, "SELECT s.id, s.number, r.price FROM spots s JOIN reserves r on s.id = r.spot_id WHERE s.parking_id=? AND s.floor_id=? AND r.start_time=? AND r.end_time=? AND r.date=?", parkingID, floorID, startTime, startTime.Add(1*time.Hour), date)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
 	}
 	var capacity int
-	err = DB.Get(&capacity, "SELECT capacity FROM floors WHERE id=?", floorID)
+	err = DB.Get(&capacity, "SELECT count(*) FROM spots WHERE floor_id=?", floorID)
+	if err != nil {
+		context.StatusCode(iris.StatusBadRequest)
+		log.Println(err)
+		return
+	}
 	_, _ = context.JSON(iris.Map{"spots": spots,
 		"capacity": capacity})
 }
@@ -225,11 +235,11 @@ func reserveSpot(context iris.Context) {
 	spotNumber := context.PostValue("park_place_number")
 	startTime := context.PostValue("start_time")
 	endTime := context.PostValue("end_time")
-	date, _ := time.Parse("2006-01-02", time.Now().String())
+	date := time.Now().Format("2006-01-02")
 	paidOnline := context.PostValue("paid_online")
 	price := context.PostValue("price")
 	var plate string
-	err = DB.Get(&plate, "SELECT plate FROM car WHERE id=?", carID)
+	err = DB.Get(&plate, "SELECT plate FROM cars WHERE id=?", carID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
@@ -296,7 +306,7 @@ func getCar(context iris.Context) {
 		Plate string
 		Color string
 	}{}
-	err = DB.Get(&car, "SELECT id, model, plate, color FROM car WHERE user_id=?", userID)
+	err = DB.Get(&car, "SELECT id, model, plate, color FROM cars WHERE user_id=?", userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		return
@@ -314,7 +324,7 @@ func updateCar(context iris.Context) {
 		context.StatusCode(iris.StatusBadRequest)
 		return
 	}
-	_, err = DB.Query("UPDATE car SET model=?, plate=?, color=? WHERE user_id=?", model, plate, color, userID)
+	_, err = DB.Query("UPDATE cars SET model=?, plate=?, color=? WHERE user_id=?", model, plate, color, userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
 		_, _ = context.JSON(iris.Map{"success": false})
@@ -346,18 +356,20 @@ func allReserves(context iris.Context) {
 	userID, err := context.Params().GetInt("id")
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 	all := make([]struct {
 		Name      string
 		Number    int
-		Date      time.Time
-		StartTime time.Time `db:"start_time"`
+		Date      string
+		StartTime string `db:"start_time"`
 		Plate     string
 	}, 0)
-	err = DB.Select(&all, "SELECT p.name, f.number, date, reserves.start_time, plate  FROM reserves JOIN spots s on reserves.spot_id = s.id JOIN parking p on s.parking_id = p.id JOIN floors f on s.floor_id = f.id WHERE user_id=?", userID)
+	err = DB.Select(&all, "SELECT p.name, f.number, reserves.date, reserves.start_time, plate FROM reserves JOIN spots s on reserves.spot_id = s.id JOIN parking p on s.parking_id = p.id JOIN floors f on s.floor_id = f.id WHERE user_id=?", userID)
 	if err != nil {
 		context.StatusCode(iris.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 	_, _ = context.JSON(iris.Map{"spots": all})

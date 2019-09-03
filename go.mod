@@ -13,7 +13,7 @@ require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/flosch/pongo2 v0.0.0-20190707114632-bbf5a6c351f4 // indirect
 	github.com/gavv/monotime v0.0.0-20190418164738-30dba4353424 // indirect
-	github.com/go-sql-driver/mysql v1.4.0
+	github.com/go-sql-driver/mysql v1.4.1
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gorilla/schema v1.1.0 // indirect
 	github.com/imkira/go-interpol v1.1.0 // indirect
