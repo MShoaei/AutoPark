@@ -1,0 +1,21 @@
+version: "3.1"
+
+services:
+  dbAuto:
+    image: mysql
+    restart: always
+    volumes:
+      - ./database:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: "abc123"
+      MYSQL_DATABASE: "AutoPark"
+      MYSQL_USER: "94213020"
+      MYSQL_PASSWORD: "845566321"
+  apiAuto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: autopark:dev
+    restart: always
+    ports:
+      - 9090:9090
