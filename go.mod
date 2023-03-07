@@ -30,7 +30,7 @@ require (
 	github.com/klauspost/compress v1.8.1 // indirect
 	github.com/klauspost/cpuid v1.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.2 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.2 // indirect
+	github.com/microcosm-cc/bluemonday v1.0.20 // indirect
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/onsi/ginkgo v1.10.1 // indirect
 	github.com/onsi/gomega v1.7.0 // indirect
